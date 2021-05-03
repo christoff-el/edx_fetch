@@ -2,6 +2,7 @@
 
 ### Prerequisites
 Needs Selenium + Chrome driver, see here to install: https://selenium-python.readthedocs.io/installation.html#drivers
+
 Should be 
 - pip install selenium
 - download the chrome driver
