@@ -13,9 +13,11 @@ Should be
 
 In fetcher.py, enter the list of courses to process
 e.g.
+``` python
 COURSES = [
     'MITx+14.100x+1T2021'
 ]
+```
 
 You can get the course name by loading it on the edx site, and taking the MITx... part from the URL,
 
