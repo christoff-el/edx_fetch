@@ -112,7 +112,7 @@ def do_course(course, driver):
     # Write to output directory
     os.mkdir('output')
     path = 'output/%s.html' % course
-    open(path,'wb').write(html.encode())
+    open(path,'wb').write(html)
 
     print('Wrote %s problems to %s' % (course, path))
 
