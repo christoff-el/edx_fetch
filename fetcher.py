@@ -1,3 +1,4 @@
+import os
 import re
 import time
 
@@ -21,7 +22,7 @@ def get_driver():
     driver = webdriver.Chrome(options=options)
     return driver
 
-def get_links(driver):
+def get_links(driver, tag):
     # Get boxes for each week in the course
     boxes = driver.find_elements_by_css_selector('div[class="pgn-transition-replace-group position-relative"]')
 
@@ -29,7 +30,7 @@ def get_links(driver):
     links = []
     for box in boxes:
         #lectures in the week
-        items = [el for el in box.find_elements_by_css_selector('li') if 'Problem Set ' in el.text]
+        items = [el for el in box.find_elements_by_css_selector('li') if tag in el.text]
 
         for item in items:
             link = item.find_elements_by_css_selector('a')[0]
@@ -92,13 +93,20 @@ def do_course(course, driver):
     WebDriverWait(driver, 300).until(lambda d: d.find_elements_by_css_selector('div[class="user-dropdown dropdown"]'))
 
     # Expand all
-    expand = WebDriverWait(driver, 20).until(lambda d: d.find_elements_by_css_selector('button[class="btn btn-outline-primary btn-block"]'))[0]
+    expand = WebDriverWait(driver, 25).until(lambda d: [
+        e for e in d.find_elements_by_css_selector('button[class="btn btn-outline-primary btn-block"]')
+        if 'Expand all' in e.text
+    ])[0]
     expand.click()
     time.sleep(3)
 
     # Links to the problem sets
-    links = get_links(driver)
+    links = get_links(driver, tag='Problem Set')
     print('Got %d problem sets' % len(links))
+
+    # Links to the exams
+    exams = get_links(driver, tag='Exam ')
+    print('Got %d exams' % len(exams))
 
     # Contents of each set
     contents = []
@@ -106,15 +114,22 @@ def do_course(course, driver):
         link_contents = process_link(driver, link)
         contents.extend(link_contents)
 
+    exam_contents = []
+    for link in exams:
+        link_contents = process_link(driver, link)
+        exam_contents.extend(link_contents)
+
     # Compile to html
-    html = (HEAD + '\n\n'.join(contents) + TAIL).encode()
+    html_problems = (HEAD + '\n\n'.join(contents) + TAIL).encode()
+    html_exams    = (HEAD + '\n\n'.join(exam_contents) + TAIL).encode()
 
     # Write to output directory
     os.mkdir('output')
-    path = 'output/%s.html' % course
-    open(path,'wb').write(html)
 
-    print('Wrote %s problems to %s' % (course, path))
+    for tag, html in zip(['problems','exams'], [html_problems,html_exams]):
+        path = 'output/%s-%s.html' % (course, tag)
+        open(path,'wb').write(html)
+        print('Wrote %s %s to %s' % (course, tag, path))
 
 
 def main():
