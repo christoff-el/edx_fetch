@@ -1,5 +1,7 @@
 # edx_fetch
 
+A tool to download the problem sets and mock exams from an edx course.
+
 ### Prerequisites
 Needs Selenium + Chrome driver, see here to install: https://selenium-python.readthedocs.io/installation.html#drivers
 
@@ -34,6 +36,10 @@ Click sign in and enter your login.
 
 As soon as it is logged in it will start to navigate to each problem set and collect the questions, don't touch anything.
 
-Eventually a html file will be put in the output directory.
+Eventually an html file for the problems and the exams will be put in the output directory.
 
 
+### The output
+
+Note that if you open the html in Safari, it might not show the whole document (maybe because it is quite long).
+Opening it in Chrome should work.
