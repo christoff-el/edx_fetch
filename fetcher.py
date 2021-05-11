@@ -63,9 +63,9 @@ def process_link(driver, link):
         for problem in problems:
             # Remove the junk at the bottom, and remove any filled-in answers
             content = problem.get_attribute('data-content')
-            content = content.split('<span class="status unanswered" id="',1)[0]
-            content = content.split('<span class="status incorrect" id=',1)[0]
-            content = content.split('<span class="status correct" id=',1)[0]
+            content = content.split('<div class="solution-span">',1)[0]
+            # content = content.split('<span class="status incorrect" id=',1)[0]
+            # content = content.split('<span class="status correct" id=',1)[0]
             content = content.replace('checked="true"', '')
             repls = []
             for cc in re.findall(r'((?=<input type="text").+(?!\/>))', content):
@@ -124,7 +124,8 @@ def do_course(course, driver):
     html_exams    = (HEAD + '\n\n'.join(exam_contents) + TAIL).encode()
 
     # Write to output directory
-    os.mkdir('output')
+    if not os.path.exists('output'):
+        os.mkdir('output')
 
     for tag, html in zip(['problems','exams'], [html_problems,html_exams]):
         path = 'output/%s-%s.html' % (course, tag)
