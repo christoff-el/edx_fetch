@@ -1,6 +1,8 @@
+import logging
 import os
 import re
 import time
+import uuid
 
 from selenium.webdriver.support.ui import WebDriverWait
 
@@ -38,6 +40,34 @@ def get_links(driver, tag):
 
     return links
 
+def get_image(driver, img_url):
+    '''Given an images url, return a binary screenshot of it in png format.'''
+
+    driver.get(img_url)
+
+    # Get the dimensions of the browser and image.
+    orig_h = driver.execute_script("return window.outerHeight")
+    orig_w = driver.execute_script("return window.outerWidth")
+    margin_h = orig_h - driver.execute_script("return window.innerHeight")
+    margin_w = orig_w - driver.execute_script("return window.innerWidth")
+    new_h = driver.execute_script('return document.getElementsByTagName("img")[0].height')
+    new_w = driver.execute_script('return document.getElementsByTagName("img")[0].width')
+
+    # Resize the browser window.
+    logging.info("Getting Image: orig %sX%s, marg %sX%s, img %sX%s - %s"%(
+      orig_w, orig_h, margin_w, margin_h, new_w, new_h, img_url))
+    driver.set_window_size(new_w + margin_w, new_h + margin_h)
+
+    # Get the image by taking a screenshot of the page.
+    img_val = driver.get_screenshot_as_png()
+    # Set the window size back to what it was.
+    driver.set_window_size(orig_w, orig_h)
+
+    # Go back to where we started.
+    #driver.back()
+    return img_val
+
+
 def process_link(driver, link):
     driver.get(link)
 
@@ -46,13 +76,24 @@ def process_link(driver, link):
     buttons = button_bar.find_elements_by_css_selector('button')
 
     # Get the questions from each of the pages
-    contents = []
+    contents = ['<h2>%s</h2>' % driver.title]
+    images   = {}
     for nn in range(len(buttons)):
         driver.switch_to.default_content()
         button_bar = WebDriverWait(driver, 20).until(lambda d:d.find_elements_by_css_selector('div[class="sequence-navigation-tabs d-flex flex-grow-1"'))[0]
         buttons = button_bar.find_elements_by_css_selector('button')
         button  = buttons[nn]
-        button.click()
+
+        try:
+            button.click()
+        except Exception as e:
+            print(e)
+            dropdown = WebDriverWait(driver, 20).until(lambda d:d.find_elements_by_css_selector('div[class="sequence-navigation-dropdown dropdown"]'))[0]
+            dropdown.find_elements_by_css_selector('button')[0].click()
+            button_bar = WebDriverWait(driver, 20).until(lambda d:d.find_elements_by_css_selector('div[class="w-100 dropdown-menu show"]'))[0]
+            buttons = button_bar.find_elements_by_css_selector('button')
+            button  = buttons[nn]
+            button.click()
 
         frame = WebDriverWait(driver, 20).until(
             lambda d: d.find_elements_by_css_selector('iframe[id="unit-iframe"]')
@@ -61,11 +102,19 @@ def process_link(driver, link):
 
         problems = driver.find_elements_by_css_selector('div[class="problems-wrapper"]')
         for problem in problems:
-            # Remove the junk at the bottom, and remove any filled-in answers
             content = problem.get_attribute('data-content')
+
+            # Fetch any images
+            for img in problem.find_elements_by_css_selector('img'):
+                uimg = img.get_attribute('src')
+                nimg = '%s.png' % str(uuid.uuid4())
+                images[nimg] = uimg
+                content = content.replace(uimg.split('courses.mitxonline.mit.edu',1)[-1], nimg)
+
+            # Remove the junk at the bottom, and remove any filled-in answers
             content = content.split('<div class="solution-span">',1)[0]
-            # content = content.split('<span class="status incorrect" id=',1)[0]
-            # content = content.split('<span class="status correct" id=',1)[0]
+            content = content.split('<span class="status incorrect" id=',1)[0]
+            content = content.split('<span class="status correct" id=',1)[0]
             content = content.replace('checked="true"', '')
             repls = []
             for cc in re.findall(r'((?=<input type="text").+(?!\/>))', content):
@@ -77,17 +126,18 @@ def process_link(driver, link):
 
             contents.append(content)
 
-    return contents
+    return contents, images
 
 
 
 COURSES = [
-    'MITx+14.100x+1T2021'
+    #'MITxT+14.73x+3T2021',
+    'MITxT+JPAL102x+3T2021'
 ]
 
 def do_course(course, driver):
     print ('Processing course %s' % course)
-    driver.get('https://learning.edx.org/course/course-v1:%s/home' % course)
+    driver.get('https://courses.mitxonline.mit.edu/learn/course/course-v1:%s/home' % course)
 
     # Wait until logged in
     WebDriverWait(driver, 300).until(lambda d: d.find_elements_by_css_selector('div[class="user-dropdown dropdown"]'))
@@ -108,16 +158,27 @@ def do_course(course, driver):
     exams = get_links(driver, tag='Exam ')
     print('Got %d exams' % len(exams))
 
+    # Links to Questions
+    quest = [l for l in get_links(driver, tag='Questions)') if l not in links and l not in exams]
+    print('Got %d question pages' % len(quest))
+
     # Contents of each set
     contents = []
-    for link in links:
-        link_contents = process_link(driver, link)
+    images   = {}
+    for link in links+quest:
+        link_contents, link_images = process_link(driver, link)
         contents.extend(link_contents)
+        images.update(link_images)
 
     exam_contents = []
     for link in exams:
-        link_contents = process_link(driver, link)
+        link_contents, link_images = process_link(driver, link)
         exam_contents.extend(link_contents)
+        images.update(link_images)
+
+    for n,d in images.items():
+        img = get_image(driver, d)
+        open('output/%s' % n, 'wb').write(img)
 
     # Compile to html
     html_problems = (HEAD + '\n\n'.join(contents) + TAIL).encode()
